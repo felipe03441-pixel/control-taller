@@ -3,15 +3,24 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 import Motor
+import io
 
 # --- CONFIGURACIÓN DE PÁGINA Y TEMA ---
 st.set_page_config(page_title="Sistema Torno CNC v2.0", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-    .stApp { background-color: #1e1e2e; color: #cdd6f4; }
-    .stSidebar { background-color: #313244; border-right: 1px solid #45475a; }
-    h1, h2, h3 { color: #89b4fa!important; }
+    /* Color de fondo principal y texto */
+    .stApp { background-color: #1F5A94; color: #CED5D9; }
+    
+    /* Color del menú lateral */
+    .stSidebar { background-color: #C94F12; border-right: 2px solid #E2E8F0; }
+    
+    /* Color de los Títulos */
+    h1, h2, h3 { color: #FFFFFF!important; } /* Blanco para resaltar sobre el fondo azul */
+    
+    /* Color de las tarjetas de métricas */
+    [data-testid="stMetricValue"] { color: #00FF66; } /* Verde brillante para los números grandes */
 </style>
 """, unsafe_allow_html=True)
 
@@ -47,7 +56,7 @@ with st.sidebar:
     
     if not st.session_state['es_admin']:
         clave_ingresada = st.text_input("🔑 Contraseña Admin", type="password")
-        if clave_ingresada == "12031996":
+        if clave_ingresada == "Torno2026":
             st.session_state['es_admin'] = True
             st.rerun()
         elif clave_ingresada != "":
@@ -102,7 +111,7 @@ st.sidebar.caption("Dashboard CNC v2.0 | Producción y Mantenimiento")
 
 
 # ==========================================
-# 1. MÓDULOS DE ANÁLISIS (DASHBOARD COMPLEMENTADO)
+# 1. MÓDULOS DE ANÁLISIS (DASHBOARD GENERAL)
 # ==========================================
 
 if menu == "📊 Dashboard General":
@@ -120,25 +129,40 @@ if menu == "📊 Dashboard General":
     
     st.divider()
     
-    col1, col2 = st.columns(2)
-    with col1:
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
         st.subheader("Distribución por Material")
         if not df_filtrado.empty:
             fig1 = px.pie(df_filtrado, names='MATERIAL', hole=0.4)
             fig1.update_traces(textposition='inside', textinfo='percent+label')
             fig1.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#cdd6f4')
-            st.plotly_chart(fig1, use_container_width=True)
+            st.plotly_chart(fig1, use_container_width=True, key="grafica_pastel_materiales")
     
-    with col2:
+    with col_g2:
         st.subheader("Top Operarios por Producción")
         prod_op = df_filtrado.groupby('OPERARIO')['QTY'].sum().reset_index().sort_values('QTY', ascending=False)
         if not prod_op.empty:
             fig2 = px.bar(prod_op.head(5), x='OPERARIO', y='QTY', color='QTY', color_continuous_scale='Viridis')
             fig2.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#cdd6f4')
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, use_container_width=True, key="grafica_top_operarios")
 
     st.subheader("Órdenes Recientes")
     st.dataframe(df_filtrado.tail(10), use_container_width=True)
+
+    st.divider()
+    st.subheader("📥 Exportar Datos")
+    
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        df_filtrado.to_excel(writer, index=False, sheet_name='Reporte_Filtrado')
+    
+    st.download_button(
+        label="Descargar Reporte en Excel",
+        data=buffer.getvalue(),
+        file_name="Reporte_Produccion_Torno.xlsx",
+        mime="application/vnd.ms-excel",
+        use_container_width=True
+    )
 
 elif menu == "🔀 Cruce de Datos":
     st.header("🔀 Cruce de Datos")
@@ -156,7 +180,7 @@ elif menu == "🔀 Cruce de Datos":
         
         fig = px.imshow(cruce, text_auto=True, aspect="auto", title="Mapa de Calor - Rechazos")
         fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#cdd6f4')
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="cruce_mapa_calor")
     else:
         st.info("No hay datos para cruzar con los filtros actuales.")
 
@@ -178,7 +202,7 @@ elif menu == "⭐ Control de Calidad":
         if not df_filtrado.empty:
             fig = px.box(df_filtrado, x='MATERIAL', y='TIEMPO DEMORADO (DÍAS)', color='MATERIAL')
             fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#cdd6f4')
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="calidad_dispersion")
 
 elif menu == "🔍 Hallazgos":
     st.header("🔍 Hallazgos de Calidad")
@@ -195,146 +219,4 @@ elif menu == "🔍 Hallazgos":
 elif menu == "⚠️ Incidentes":
     st.header("⚠️ Registro de Incidentes (SST)")
     
-    if not df_filtrado.empty:
-        inc = df_filtrado['INCIDENTE'].value_counts()
-        st.bar_chart(inc)
-        
-        incidentes_reales = df_filtrado[df_filtrado['INCIDENTE'] != 'Ninguno']
-        if not incidentes_reales.empty:
-            st.subheader("Detalle de Incidentes")
-            st.dataframe(incidentes_reales[['OPERARIO','MATERIAL','INCIDENTE','TIEMPO DEMORADO (DÍAS)']], use_container_width=True)
-        else:
-            st.success("✅ No se registran incidentes (Cero accidentes) en los filtros actuales.")
-
-elif menu == "🛡️ Riesgos":
-    st.header("🛡️ Matriz de Riesgos")
-    
-    if not df_filtrado.empty:
-        riesgos = df_filtrado.groupby(['MATERIAL','NIVEL_RIESGO']).size().unstack(fill_value=0)
-        st.dataframe(riesgos, use_container_width=True)
-        
-        fig = px.imshow(riesgos, text_auto=True, color_continuous_scale='RdYlGn_r', 
-                        title="Nivel de Riesgo por Material")
-        fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#cdd6f4')
-        st.plotly_chart(fig, use_container_width=True)
-
-
-# ==========================================
-# 2. MÓDULOS OPERATIVOS (TU CÓDIGO ORIGINAL)
-# ==========================================
-
-elif menu == "📝 Nueva Orden de Trabajo":
-    st.title("📝 Registrar Nueva Orden")
-    
-    if es_admin:
-        sedes_existentes = sorted([str(s) for s in df_actual['SOLICITANTE'].unique() if pd.notna(s)])
-        opciones_sedes = sedes_existentes + ["Otro"]
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            sede_seleccionada = st.selectbox("Selecciona la Sede Solicitante:", opciones_sedes)
-            if sede_seleccionada == "Otro":
-                solicitante = st.text_input("❌ Escribe el nombre de la nueva sede:")
-            else:
-                solicitante = sede_seleccionada
-                
-            pieza = st.text_input("Nombre de la Pieza")
-            cantidad = st.number_input("Cantidad (QTY)", min_value=1, step=1)
-            
-        with col2:
-            prioridad = st.selectbox("Prioridad", ["BAJA (MP)", "MEDIA (FL)", "ALTA (FS)"])
-            material = st.selectbox("Material", ["ACERO", "ACERO PLATA", "ALUMINIO", "BRONCE", "ACERO PLATA Y ALUMINIO", "POR DEFINIR"])
-            dimensiones = st.text_input("Dimensiones (Opcional)", value="SEGUN MUESTRA")
-            
-        st.write("") 
-        
-        if st.button("➕ Guardar Orden en Sistema", use_container_width=True):
-            if solicitante == "" or pieza == "":
-                st.error("⚠️ La Sede y el Nombre de la Pieza son obligatorios.")
-            else:
-                Motor.agregar_solicitud(solicitante, prioridad, pieza, material, cantidad, dimensiones)
-                st.success(f"✅ ¡Orden creada exitosamente para {solicitante}! Ya aparece 'EN PROCESO'.")
-                st.rerun()
-    else:
-        st.error("🔒 Acceso denegado. Ingresa la contraseña en el menú lateral para usar esta función.")
-
-elif menu == "✅ Control de Entregas":
-    st.title("✅ Control de Producción y Entregas")
-    
-    if es_admin:
-        df_pendientes = df_actual[df_actual['ESTADO'] == 'EN PROCESO']
-        
-        if not df_pendientes.empty:
-            st.write("### 🛠️ Trabajos Activos en Taller:")
-            st.dataframe(df_pendientes[['SOLICITANTE', 'PRIORIDAD', 'NOMBRE PIEZA', 'QTY', 'MATERIAL']], use_container_width=True)
-            
-            st.divider()
-            st.subheader("Marcar trabajo como Terminado")
-            
-            opciones = []
-            for indice, fila in df_pendientes.iterrows():
-                opciones.append(f"Índice {indice} | {fila['QTY']}x {fila['NOMBRE PIEZA']} - {fila['SOLICITANTE']}")
-                
-            col_sel, col_btn = st.columns([3, 1])
-            with col_sel:
-                trabajo_seleccionado = st.selectbox("Selecciona el trabajo finalizado:", opciones)
-            with col_btn:
-                st.write("") 
-                st.write("") 
-                if st.button("Confirmar Entrega 🚀", use_container_width=True):
-                    indice_real = int(trabajo_seleccionado.split(" ")[1])
-                    Motor.marcar_entregado(indice_real)
-                    st.success("¡Pieza entregada con éxito! Remisión generada.")
-                    st.rerun()
-        else:
-            st.success("🎉 ¡Excelente trabajo! El taller no tiene órdenes pendientes.")
-            
-        st.divider()
-        st.subheader("🔍 Buscador de Remisiones")
-        busqueda = st.text_input("Ingresa el número de remisión para ver los detalles:")
-        df_entregados = df_actual[df_actual['ESTADO'] == 'ENTREGADO'].copy()
-        
-        if busqueda and 'nro de remision' in df_entregados.columns:
-            df_entregados['Remision_Limpia'] = pd.to_numeric(df_entregados['nro de remision'], errors='coerce').fillna(0).astype(int).astype(str)
-            resultado = df_entregados[df_entregados['Remision_Limpia'] == busqueda.strip()]
-            
-            if not resultado.empty:
-                st.success(f"✅ Encontrado:")
-                st.dataframe(resultado.drop(columns=['Remision_Limpia']), use_container_width=True)
-            else:
-                st.warning("⚠️ No se encontró ninguna pieza vinculada a esa remisión.")
-    else:
-        st.error("🔒 Acceso denegado. Ingresa la contraseña en el menú lateral.")
-
-elif menu == "👷 Vista Operario":
-    st.title("👷 Panel de Producción Operario")
-    
-    # Manejo seguro de operarios disponibles (desde la base de datos o predeterminados)
-    lista_operarios = [op for op in df_actual['OPERARIO'].unique() if pd.notna(op)]
-    if not lista_operarios:
-        lista_operarios = ["Operario Uno", "Operario Dos", "Operario Tres"]
-        
-    nombre_operario = st.selectbox("Selecciona tu nombre:", lista_operarios)
-    st.divider()
-    
-    df_pendientes = df_actual[df_actual['ESTADO'] == 'EN PROCESO']
-    if not df_pendientes.empty:
-        st.subheader("Trabajos en Taller:")
-        st.dataframe(df_pendientes[['SOLICITANTE', 'NOMBRE PIEZA', 'QTY', 'OPERARIO']], use_container_width=True)
-        
-        st.divider()
-        st.subheader("Asignar trabajo a mi nombre")
-        
-        opciones_trabajo = []
-        for idx, row in df_pendientes.iterrows():
-            opciones_trabajo.append(f"Fila {idx} - {row['NOMBRE PIEZA']} (Para: {row['SOLICITANTE']})")
-            
-        seleccion = st.selectbox("¿Qué pieza vas a fabricar?", opciones_trabajo)
-        
-        if st.button("Tomar Trabajo"):
-            idx_real = int(seleccion.split(" ")[1])
-            Motor.asignar_operario(idx_real, nombre_operario)
-            st.success(f"¡Trabajo asignado a {nombre_operario}!")
-            st.rerun()
-    else:
-        st.info("No hay trabajos activos en el taller en este momento.")
+    if not df_filtr
