@@ -11,16 +11,16 @@ st.set_page_config(page_title="Sistema Torno CNC v2.0", layout="wide", initial_s
 st.markdown("""
 <style>
     /* Color de fondo principal y texto */
-    .stApp { background-color: #3C4044; color: #EDBF9B; }
+    .stApp { background-color: #1F5A94; color: #CED5D9; }
     
     /* Color del menú lateral */
-    .stSidebar { background-color: #FD7B41; border-right: 2px solid #E2E8F0; }
+    .stSidebar { background-color: #C94F12; border-right: 2px solid #E2E8F0; }
     
     /* Color de los Títulos */
-    h1, h2, h3 { color: #DDDCDB!important; } /* Blanco para resaltar sobre el fondo azul */
+    h1, h2, h3 { color: #FFFFFF!important; } 
     
     /* Color de las tarjetas de métricas */
-    [data-testid="stMetricValue"] { color: #DDDCDB; } /* Verde brillante para los números grandes */
+    [data-testid="stMetricValue"] { color: #00FF66; } 
 </style>
 """, unsafe_allow_html=True)
 
@@ -91,14 +91,12 @@ if menu in pantallas_analiticas:
     st.sidebar.divider()
     st.sidebar.caption("Filtros Globales de Análisis")
     
-    # Manejo de nulos en listas desplegables
     materiales_disp = [m for m in df_actual['MATERIAL'].unique() if pd.notna(m)]
     operarios_disp = [o for o in df_actual['OPERARIO'].unique() if pd.notna(o)]
     
     material_sel = st.sidebar.multiselect("Filtrar Material", materiales_disp, default=materiales_disp)
     operario_sel = st.sidebar.multiselect("Filtrar Operario", operarios_disp, default=operarios_disp)
     
-    # Aplicar filtros
     df_filtrado = df_actual[
         (df_actual['MATERIAL'].isin(material_sel)) & 
         (df_actual['OPERARIO'].isin(operario_sel))
@@ -111,12 +109,13 @@ st.sidebar.caption("Dashboard CNC v2.0 | Producción y Mantenimiento")
 
 
 # ==========================================
-# 1. MÓDULOS DE ANÁLISIS (DASHBOARD GENERAL)
+# 1. MÓDULOS DE ANÁLISIS 
 # ==========================================
 
 if menu == "📊 Dashboard General":
     st.header("📊 Dashboard General de Producción")
     
+    # MÉTRICAS
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Piezas Solicitadas", f"{int(df_filtrado['QTY'].sum()):,}")
     col2.metric("Piezas Entregadas", f"{int(df_filtrado[df_filtrado['ESTADO']=='ENTREGADO']['QTY'].sum()):,}")
@@ -129,6 +128,7 @@ if menu == "📊 Dashboard General":
     
     st.divider()
     
+    # FILA 1 DE GRÁFICAS
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         st.subheader("Distribución por Material")
@@ -146,6 +146,30 @@ if menu == "📊 Dashboard General":
             fig2.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#cdd6f4')
             st.plotly_chart(fig2, use_container_width=True, key="grafica_top_operarios")
 
+    st.divider()
+
+    # FILA 2 DE GRÁFICAS (NUEVAS)
+    col_g3, col_g4 = st.columns(2)
+    with col_g3:
+        st.subheader("📈 Tendencia de Solicitudes")
+        if not df_filtrado.empty and 'FECHA SOLICITUD' in df_filtrado.columns:
+            tendencia = df_filtrado.groupby('FECHA SOLICITUD')['QTY'].sum().reset_index()
+            fig_line = px.line(tendencia, x='FECHA SOLICITUD', y='QTY', markers=True, color_discrete_sequence=['#00FF66'])
+            fig_line.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#CED5D9')
+            st.plotly_chart(fig_line, use_container_width=True, key="grafica_tendencia_tiempo")
+
+    with col_g4:
+        st.subheader("🌪️ Embudo de Estados")
+        if not df_filtrado.empty:
+            embudo_datos = df_filtrado['ESTADO'].value_counts().reset_index()
+            embudo_datos.columns = ['ESTADO', 'CANTIDAD']
+            fig_funnel = px.funnel(embudo_datos, x='CANTIDAD', y='ESTADO', color='ESTADO',
+                                   color_discrete_map={'ENTREGADO': '#059669', 'EN PROCESO': '#F59E0B', 'RECHAZADO': '#DC2626'})
+            fig_funnel.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#CED5D9')
+            st.plotly_chart(fig_funnel, use_container_width=True, key="grafica_embudo_estados")
+
+    st.divider()
+    
     st.subheader("Órdenes Recientes")
     st.dataframe(df_filtrado.tail(10), use_container_width=True)
 
@@ -170,9 +194,7 @@ elif menu == "🔀 Cruce de Datos":
     
     if not df_filtrado.empty:
         cruce = df_filtrado.pivot_table(
-            values='QTY', 
-            index='OPERARIO', 
-            columns='MATERIAL', 
+            values='QTY', index='OPERARIO', columns='MATERIAL', 
             aggfunc=lambda x: (df_filtrado.loc[x.index, 'ESTADO'] == 'RECHAZADO').sum(),
             fill_value=0
         )
@@ -186,7 +208,6 @@ elif menu == "🔀 Cruce de Datos":
 
 elif menu == "⭐ Control de Calidad":
     st.header("⭐ Control de Calidad")
-    
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Porcentaje de Rechazo por Material")
@@ -206,7 +227,6 @@ elif menu == "⭐ Control de Calidad":
 
 elif menu == "🔍 Hallazgos":
     st.header("🔍 Hallazgos de Calidad")
-    
     df_rechazados = df_filtrado[df_filtrado['ESTADO'] == 'RECHAZADO']
     if not df_rechazados.empty:
         hallazgos = df_rechazados['TIPO_DEFECTO'].value_counts()
@@ -218,7 +238,6 @@ elif menu == "🔍 Hallazgos":
 
 elif menu == "⚠️ Incidentes":
     st.header("⚠️ Registro de Incidentes (SST)")
-    
     if not df_filtrado.empty:
         inc = df_filtrado['INCIDENTE'].value_counts()
         st.bar_chart(inc)
@@ -232,13 +251,11 @@ elif menu == "⚠️ Incidentes":
 
 elif menu == "🛡️ Riesgos":
     st.header("🛡️ Matriz de Riesgos")
-    
     if not df_filtrado.empty:
         riesgos = df_filtrado.groupby(['MATERIAL','NIVEL_RIESGO']).size().unstack(fill_value=0)
         st.dataframe(riesgos, use_container_width=True)
         
-        fig = px.imshow(riesgos, text_auto=True, color_continuous_scale='RdYlGn_r', 
-                        title="Nivel de Riesgo por Material")
+        fig = px.imshow(riesgos, text_auto=True, color_continuous_scale='RdYlGn_r', title="Nivel de Riesgo por Material")
         fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#cdd6f4')
         st.plotly_chart(fig, use_container_width=True, key="riesgos_matriz")
 
@@ -249,7 +266,6 @@ elif menu == "🛡️ Riesgos":
 
 elif menu == "📝 Nueva Orden de Trabajo":
     st.title("📝 Registrar Nueva Orden")
-    
     if es_admin:
         sedes_existentes = sorted([str(s) for s in df_actual['SOLICITANTE'].unique() if pd.notna(s)])
         opciones_sedes = sedes_existentes + ["Otro"]
@@ -284,10 +300,8 @@ elif menu == "📝 Nueva Orden de Trabajo":
 
 elif menu == "✅ Control de Entregas":
     st.title("✅ Control de Producción y Entregas")
-    
     if es_admin:
         df_pendientes = df_actual[df_actual['ESTADO'] == 'EN PROCESO']
-        
         if not df_pendientes.empty:
             st.write("### 🛠️ Trabajos Activos en Taller:")
             st.dataframe(df_pendientes[['SOLICITANTE', 'PRIORIDAD', 'NOMBRE PIEZA', 'QTY', 'MATERIAL']], use_container_width=True)
@@ -309,7 +323,7 @@ elif menu == "✅ Control de Entregas":
                     indice_real = int(trabajo_seleccionado.split(" ")[1])
                     Motor.marcar_entregado(indice_real)
                     st.success("¡Pieza entregada con éxito! Remisión generada.")
-                    st.balloons() # 🎈 Animación festiva en pantalla al entregar exitosamente
+                    st.balloons() 
                     st.rerun()
         else:
             st.success("🎉 ¡Excelente trabajo! El taller no tiene órdenes pendientes.")
@@ -358,7 +372,7 @@ elif menu == "👷 Vista Operario":
         if st.button("Tomar Trabajo"):
             idx_real = int(seleccion.split(" ")[1])
             Motor.asignar_operario(idx_real, nombre_operario)
-            st.toast(f"¡Trabajo asignado a {nombre_operario}! ⚙️", icon="👷") # Notificación flotante interactiva
+            st.toast(f"¡Trabajo asignado a {nombre_operario}! ⚙️", icon="👷")
             st.success(f"¡Trabajo asignado a {nombre_operario}!")
             st.rerun()
     else:
