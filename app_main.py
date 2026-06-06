@@ -59,7 +59,7 @@ with st.sidebar:
     
     if not st.session_state['es_admin']:
         clave_ingresada = st.text_input("🔑 Contraseña Admin", type="password")
-        if clave_ingresada == "Torno2026":
+        if clave_ingresada == "123456":
             st.session_state['es_admin'] = True
             st.rerun()
         elif clave_ingresada != "":
