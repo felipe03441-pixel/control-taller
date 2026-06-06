@@ -11,16 +11,16 @@ st.set_page_config(page_title="Sistema Torno CNC v2.0", layout="wide", initial_s
 st.markdown("""
 <style>
     /* Color de fondo principal y texto */
-    .stApp { background-color: #1F5A94; color: #CED5D9; }
+    .stApp { background-color: #3C4044; color: #EDBF9B; }
     
     /* Color del menú lateral */
-    .stSidebar { background-color: #C94F12; border-right: 2px solid #E2E8F0; }
+    .stSidebar { background-color: #FD7B41; border-right: 2px solid #E2E8F0; }
     
     /* Color de los Títulos */
-    h1, h2, h3 { color: #FFFFFF!important; } /* Blanco para resaltar sobre el fondo azul */
+    h1, h2, h3 { color: #DDDCDB!important; } /* Blanco para resaltar sobre el fondo azul */
     
     /* Color de las tarjetas de métricas */
-    [data-testid="stMetricValue"] { color: #00FF66; } /* Verde brillante para los números grandes */
+    [data-testid="stMetricValue"] { color: #DDDCDB; } /* Verde brillante para los números grandes */
 </style>
 """, unsafe_allow_html=True)
 
